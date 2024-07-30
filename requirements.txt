@@ -1,0 +1,10 @@
+
+git+https://github.com/idealo/image-super-resolution.git@master#egg=image_super_resolutiont
+numpy==2.0.1
+pillow==10.4.0
+tensorflow==2.10.0
+# keras
+h5py
+requests
+tqdm
+streamlit
