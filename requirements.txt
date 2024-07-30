@@ -8,7 +8,7 @@ pillow==10.4.0
 tensorflow
 # keras
 # h5py
-git+https://github.com/h5py/h5py.git@master#egg=h5py
+git+https://github.com/h5py/h5py.git@2.10.0#egg=h5py
 requests
 tqdm
 streamlit
