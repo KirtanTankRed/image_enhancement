@@ -1,6 +1,6 @@
 
 git+https://github.com/idealo/image-super-resolution.git@master#egg=ISR
-numpy==2.0.1
+numpy==2.0.0
 pillow==10.4.0
 tensorflow==2.16.1
 # keras
