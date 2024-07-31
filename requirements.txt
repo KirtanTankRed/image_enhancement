@@ -1,14 +1,27 @@
 
 git+https://github.com/idealo/image-super-resolution.git@master#egg=ISR
-Cython
-numpy
-# numpy==1.18.1
-pillow==10.4.0
-# tensorflow==2.0.1
-tensorflow
-# keras
-# h5py
-git+https://github.com/h5py/h5py.git@2.10.0#egg=h5py
+tensorflow==2.0.0
+keras==2.2.4
+pyaml==20.4.0
+imageio==2.9.0
+h5py==2.10.0
+numpy==1.19.5
+scipy==1.5.4
+pillow==8.0.1
+matplotlib==3.3.3
 requests
 tqdm
 streamlit
+
+# Cython
+# numpy
+# numpy==1.18.1
+# pillow==10.4.0
+# tensorflow==2.0.1
+# tensorflow
+# keras
+# h5py
+# git+https://github.com/h5py/h5py.git@2.10.0#egg=h5py
+# requests
+# tqdm
+# streamlit
