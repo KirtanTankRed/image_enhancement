@@ -1,5 +1,5 @@
 # git+https://github.com/<username>/<repo_name>.git@<branch_or_tag>#egg=<package_name>
 # git+https://github.com/CQFIO/FastImageProcessing.git
 tensorflow>=1.0
-opencv-python
+opencv-python-headless
 numpy
