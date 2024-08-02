@@ -9,7 +9,7 @@ def lrelu(x):
     return tf.maximum(x * 0.2, x)
 
 # Define custom initializer
-def identity_initializer(shape, dtype=tf.float32):
+def identity_initializer(shape, dtype=None):
     array = np.zeros(shape, dtype=float)
     cx, cy = shape[0] // 2, shape[1] // 2
     for i in range(np.minimum(shape[2], shape[3])):
@@ -17,17 +17,23 @@ def identity_initializer(shape, dtype=tf.float32):
     return tf.constant(array, dtype=dtype)
 
 # Define normalization method
-def nm(x):
-    w0 = tf.Variable(1.0, name='w0')
-    w1 = tf.Variable(0.0, name='w1')
-    return w0 * x + w1 * tf.keras.layers.BatchNormalization()(x)
+class NormalizationLayer(tf.keras.layers.Layer):
+    def __init__(self):
+        super(NormalizationLayer, self).__init__()
+        self.w0 = tf.Variable(1.0, trainable=True)
+        self.w1 = tf.Variable(0.0, trainable=True)
+        self.bn = tf.keras.layers.BatchNormalization()
+
+    def call(self, inputs):
+        return self.w0 * inputs + self.w1 * self.bn(inputs)
 
 # Build the model
 def build(input_tensor):
-    initializer = tf.keras.initializers.Constant(identity_initializer([3, 3, 3, 24]))
-    x = tf.keras.layers.Conv2D(24, (3, 3), padding='same', activation=lrelu, kernel_initializer=initializer)(input_tensor)
+    x = tf.keras.layers.Conv2D(24, (3, 3), padding='same', activation=lrelu, kernel_initializer=identity_initializer)(input_tensor)
+    x = NormalizationLayer()(x)
     for rate in [2, 4, 8, 16, 32, 64, 1]:
-        x = tf.keras.layers.Conv2D(24, (3, 3), dilation_rate=rate, padding='same', activation=lrelu, kernel_initializer=initializer)(x)
+        x = tf.keras.layers.Conv2D(24, (3, 3), dilation_rate=rate, padding='same', activation=lrelu, kernel_initializer='he_normal')(x)
+        x = NormalizationLayer()(x)
     x = tf.keras.layers.Conv2D(3, (1, 1), padding='same')(x)
     return x
 
@@ -75,4 +81,3 @@ if uploaded_files:
         st.download_button(label="Download Processed Image", data=io_buf, file_name="processed_image.jpg", mime="image/jpeg")
 
 st.write("Upload images to process them.")
-
