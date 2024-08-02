@@ -1,66 +1,78 @@
-import streamlit as st
+#import streamlit as st
 import tensorflow as tf
 import numpy as np
 import cv2
 from io import BytesIO
-from tensorflow.contrib import slim
 
-# Define the lrelu activation function
+# Define lrelu activation function
 def lrelu(x):
-    return tf.maximum(x*0.2, x)
+    return tf.maximum(x * 0.2, x)
 
-# Define the identity initializer
-def identity_initializer():
-    def _initializer(shape, dtype=tf.float32, partition_info=None):
-        array = np.zeros(shape, dtype=float)
-        cx, cy = shape[0] // 2, shape[1] // 2
-        for i in range(np.minimum(shape[2], shape[3])):
-            array[cx, cy, i, i] = 1
-        return tf.constant(array, dtype=dtype)
-    return _initializer
+# Define custom initializer
+def identity_initializer(shape, dtype=tf.float32):
+    array = np.zeros(shape, dtype=float)
+    cx, cy = shape[0] // 2, shape[1] // 2
+    for i in range(np.minimum(shape[2], shape[3])):
+        array[cx, cy, i, i] = 1
+    return tf.constant(array, dtype=dtype)
 
-# Define the normalization function
+# Define normalization method
 def nm(x):
     w0 = tf.Variable(1.0, name='w0')
     w1 = tf.Variable(0.0, name='w1')
-    return w0 * x + w1 * slim.batch_norm(x)
+    return w0 * x + w1 * tf.keras.layers.BatchNormalization()(x)
 
-# Define the network architecture
-def build(input):
-    net = slim.conv2d(input, 24, [3, 3], rate=1, activation_fn=lrelu, normalizer_fn=nm, weights_initializer=identity_initializer(), scope='g_conv1')
-    net = slim.conv2d(net, 24, [3, 3], rate=2, activation_fn=lrelu, normalizer_fn=nm, weights_initializer=identity_initializer(), scope='g_conv2')
-    net = slim.conv2d(net, 24, [3, 3], rate=4, activation_fn=lrelu, normalizer_fn=nm, weights_initializer=identity_initializer(), scope='g_conv3')
-    net = slim.conv2d(net, 24, [3, 3], rate=8, activation_fn=lrelu, normalizer_fn=nm, weights_initializer=identity_initializer(), scope='g_conv4')
-    net = slim.conv2d(net, 24, [3, 3], rate=16, activation_fn=lrelu, normalizer_fn=nm, weights_initializer=identity_initializer(), scope='g_conv5')
-    net = slim.conv2d(net, 24, [3, 3], rate=32, activation_fn=lrelu, normalizer_fn=nm, weights_initializer=identity_initializer(), scope='g_conv6')
-    net = slim.conv2d(net, 24, [3, 3], rate=64, activation_fn=lrelu, normalizer_fn=nm, weights_initializer=identity_initializer(), scope='g_conv7')
-    net = slim.conv2d(net, 24, [3, 3], rate=1, activation_fn=lrelu, normalizer_fn=nm, weights_initializer=identity_initializer(), scope='g_conv9')
-    net = slim.conv2d(net, 3, [1, 1], rate=1, activation_fn=None, scope='g_conv_last')
-    return net
+# Build the model
+def build(input_tensor):
+    initializer = tf.keras.initializers.Constant(identity_initializer([3, 3, 3, 24]))
+    x = tf.keras.layers.Conv2D(24, (3, 3), padding='same', activation=lrelu, kernel_initializer=initializer)(input_tensor)
+    for rate in [2, 4, 8, 16, 32, 64, 1]:
+        x = tf.keras.layers.Conv2D(24, (3, 3), dilation_rate=rate, padding='same', activation=lrelu, kernel_initializer=initializer)(x)
+    x = tf.keras.layers.Conv2D(3, (1, 1), padding='same')(x)
+    return x
 
-# Load model
-sess = tf.Session()
-input_ph = tf.placeholder(tf.float32, shape=[None, None, None, 3])
-network = build(input_ph)
-saver = tf.train.Saver()
-sess.run(tf.global_variables_initializer())
-ckpt = tf.train.get_checkpoint_state("L0_smoothing")  # Adjust path as needed
-if ckpt:
-    saver.restore(sess, ckpt.model_checkpoint_path)
+# Streamlit app
+st.title("Image Processing with TensorFlow")
 
-# Streamlit interface
-st.title("Image Processing with Pretrained Model")
-st.write("Upload an image and apply the task.")
+uploaded_files = st.file_uploader("Choose images", accept_multiple_files=True, type=["jpg", "png", "jpeg"])
 
-uploaded_file = st.file_uploader("Choose an image...", type="png")
-if uploaded_file is not None:
-    image = np.array(cv2.imdecode(np.frombuffer(uploaded_file.read(), np.uint8), 1))
-    image = np.expand_dims(image.astype(np.float32) / 255.0, axis=0)
+task = "L0_smoothing"
+is_training = False
 
-    # Process image
-    output_image = sess.run(network, feed_dict={input_ph: image})
-    output_image = np.clip(output_image, 0.0, 1.0) * 255.0
-    output_image = output_image[0].astype(np.uint8)
+# Placeholder for input and output
+input_tensor = tf.keras.Input(shape=(None, None, 3))
+output_tensor = build(input_tensor)
+model = tf.keras.Model(inputs=input_tensor, outputs=output_tensor)
+model.compile(optimizer=tf.keras.optimizers.Adam(learning_rate=0.0001), loss='mse')
 
-    # Display images
-    st.image([image[0].astype(np.uint8), output_image], caption=['Original', 'Processed'], width=300)
+# Load pre-trained model
+ckpt = tf.train.Checkpoint(model=model)
+ckpt_manager = tf.train.CheckpointManager(ckpt, task, max_to_keep=1000)
+if ckpt_manager.latest_checkpoint:
+    ckpt.restore(ckpt_manager.latest_checkpoint).expect_partial()
+    st.write('Loaded model: ' + ckpt_manager.latest_checkpoint)
+
+if uploaded_files:
+    st.write("Processing images...")
+
+    for uploaded_file in uploaded_files:
+        bytes_data = uploaded_file.read()
+        image = cv2.imdecode(np.frombuffer(bytes_data, np.uint8), cv2.IMREAD_COLOR)
+        input_image = np.expand_dims(image, axis=0) / 255.0
+
+        st.image(image, caption='Original Image', use_column_width=True)
+
+        output_image = model.predict(input_image)
+        output_image = np.minimum(np.maximum(output_image, 0.0), 1.0) * 255.0
+        output_image = np.uint8(output_image[0])
+
+        st.image(output_image, caption='Processed Image', use_column_width=True)
+
+        # Convert output image to bytes
+        is_success, buffer = cv2.imencode(".jpg", output_image)
+        io_buf = BytesIO(buffer)
+
+        st.download_button(label="Download Processed Image", data=io_buf, file_name="processed_image.jpg", mime="image/jpeg")
+
+st.write("Upload images to process them.")
+
